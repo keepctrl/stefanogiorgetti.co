@@ -69,13 +69,12 @@
   /*
     Point this at your Bunny Stream / CDN reel, e.g.
     https://YOUR-ZONE.b-cdn.net/reel/loop.mp4
-    Until wired in, an animated grain field holds the space.
+    hero-poster.jpg shows while it loads.
   */
   .hero-video{
     position:absolute; inset:0; width:100%; height:100%;
-    object-fit:cover; opacity:0.5; z-index:0;
+    object-fit:cover; opacity:1; z-index:0;
   }
-  #grain{ position:absolute; inset:0; z-index:0; width:100%; height:100%; }
 
   .hero::after{
     content:"";
@@ -117,10 +116,14 @@
 
   .hero-foot{
     position:absolute; bottom:1.8rem; left:0; right:0; z-index:2;
-    display:flex; justify-content:space-between; padding:0 2rem;
+    display:grid; grid-template-columns:1fr auto 1fr; align-items:center; padding:0 2rem;
     font-size:0.7rem; color:var(--dim);
   }
+  .hero-foot > :first-child{ justify-self:start; text-align:left; }
   #timecode{ color:var(--ink); }
+  .hero-links{ justify-self:end; display:flex; gap:1.6rem; }
+  .hero-links a:hover{ color:var(--teal); }
+  @media (max-width:560px){ .hero-links{ gap:0.9rem; } .hero-foot{ padding:0 1rem; gap:0.8rem; } }
 
   /* ---------- capabilities ---------- */
 
@@ -169,6 +172,9 @@
     https://YOUR-ZONE.b-cdn.net/reels/comp-reel.mp4
   */
   .reel-video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; }
+  .reel.playing{ cursor:default; }
+  .reel.playing::after, .reel.playing .play, .reel.playing .reel-meta{ display:none; }
+  .reel.playing .reel-video{ z-index:3; object-fit:contain; }
   .reel canvas{ position:absolute; inset:0; z-index:0; }
 
   .reel::after{
@@ -252,9 +258,27 @@
     pointer-events:none;
   }
 
+  .frame.wide{ grid-column:span 2; aspect-ratio:32/10; }
+
+  /* ---------- lightbox player ---------- */
+  .lightbox{
+    position:fixed; inset:0; z-index:100;
+    display:none; align-items:center; justify-content:center;
+    background:rgba(10,13,13,0.94);
+    padding:4rem 2rem;
+  }
+  .lightbox.open{ display:flex; }
+  .lightbox video{ width:100%; max-width:1400px; max-height:100%; background:#000; }
+  .lightbox .close{
+    position:absolute; top:1.4rem; right:2rem;
+    font-size:0.75rem; color:var(--dim); background:none; border:0; cursor:pointer;
+  }
+  .lightbox .close:hover{ color:var(--ink); }
+
   @media (max-width:900px){ .grid{ grid-template-columns:repeat(2, 1fr); } }
   @media (max-width:560px){
     .grid{ grid-template-columns:1fr; }
+    .frame.wide{ grid-column:auto; aspect-ratio:16/10; }
     .topbar nav{ display:none; }
   }
 
@@ -339,12 +363,9 @@
   </div>
 
   <section class="hero">
-    <!--
-      <video class="hero-video" autoplay muted loop playsinline poster="poster.jpg">
-        <source src="https://YOUR-ZONE.b-cdn.net/reel/loop.mp4" type="video/mp4">
-      </video>
-    -->
-    <canvas id="grain"></canvas>
+    <video class="hero-video" autoplay muted loop playsinline poster="hero-poster.jpg">
+      <source src="https://keepctrl.b-cdn.net/landing_v01_web.mp4" type="video/mp4">
+    </video>
 
     <div class="hero-content">
       <div class="wordmark">Stefano Giorgetti</div>
@@ -358,6 +379,11 @@
     <div class="hero-foot mono">
       <span>LOS ANGELES, CA</span>
       <span id="timecode">00:00:00:00</span>
+      <span class="hero-links">
+        <a href="#">IMDb</a>
+        <a href="#">LinkedIn</a>
+        <a href="#">Vimeo</a>
+      </span>
     </div>
   </section>
 
@@ -416,6 +442,11 @@
     <a href="mailto:hello@stefanogiorgetti.co" class="btn primary">hello@stefanogiorgetti.co</a>
   </section>
 
+  <div class="lightbox" id="lightbox">
+    <button class="close mono" aria-label="Close">CLOSE ✕</button>
+    <video controls playsinline></video>
+  </div>
+
   <footer id="contact">
     <div>© Stefano Giorgetti</div>
     <div style="display:flex; gap:1.6rem;">
@@ -432,8 +463,8 @@
      https://YOUR-ZONE.b-cdn.net/reels/comp-reel.mp4
      Leave `video: null` to keep the grain placeholder until it's ready. */
   const reels = [
-    { title:"Compositing Reel", dur:"2:14", video:null, hue:185 },
-    { title:"FX & CG Reel",     dur:"1:48", video:null, hue:20  },
+    { title:"CG Supervisor Reel", dur:"2:50", video:"https://keepctrl.b-cdn.net/StefanoGiorgetti_CGSupReel2024.mp4", hue:185 },
+    { title:"FX Reel",            dur:"2:06", video:"https://keepctrl.b-cdn.net/FXReel_Aug24.mp4",                   hue:20  },
   ];
 
   const reelGrid = document.getElementById('reelGrid');
@@ -441,7 +472,7 @@
     const el = document.createElement('div');
     el.className = 'reel';
     el.innerHTML = `
-      ${r.video ? `<video class="reel-video" muted loop playsinline><source src="${r.video}" type="video/mp4"></video>` : `<canvas class="reel-grain" data-hue="${r.hue}"></canvas>`}
+      ${r.video ? `<video class="reel-video" playsinline preload="metadata"><source src="${r.video}#t=4" type="video/mp4"></video>` : `<canvas class="reel-grain" data-hue="${r.hue}"></canvas>`}
       <div class="play"></div>
       <div class="reel-meta">
         <span class="title">${r.title}</span>
@@ -450,7 +481,17 @@
     `;
     reelGrid.appendChild(el);
 
-    if (!r.video){
+    if (r.video){
+      // First click: drop the overlay, play from the top with sound and native controls.
+      const video = el.querySelector('video');
+      el.addEventListener('click', () => {
+        if (el.classList.contains('playing')) return;
+        el.classList.add('playing');
+        video.controls = true;
+        video.currentTime = 0;
+        video.play();
+      });
+    } else {
       const canvas = el.querySelector('canvas');
       const ctx = canvas.getContext('2d');
       const resize = () => {
@@ -479,49 +520,90 @@
   });
 
   /* ---------- COMMERCIALS ----------
-     Replace `still` with a real frame grab / thumbnail. */
+     `still` is a frame grab in /commercials; `video` is the web encode on Bunny.
+     `wide` tiles span two columns so 10 spots fill the 3-across grid evenly. */
+  const CDN = 'https://keepctrl.b-cdn.net/commercials/';
   const commercials = [
-    { num:"DIR. CUT",  title:"Brand Name — Campaign Title", tags:["AGENCY NAME","2025"], hue:190 },
-    { num:"DIR. CUT",  title:"Brand Name — Campaign Title", tags:["AGENCY NAME","2024"], hue:25  },
-    { num:"DIR. CUT",  title:"Brand Name — Campaign Title", tags:["AGENCY NAME","2024"], hue:205 },
-    { num:"DIR. CUT",  title:"Brand Name — Campaign Title", tags:["AGENCY NAME","2023"], hue:15  },
-    { num:"DIR. CUT",  title:"Brand Name — Campaign Title", tags:["AGENCY NAME","2023"], hue:195 },
-    { num:"DIR. CUT",  title:"Brand Name — Campaign Title", tags:["AGENCY NAME","2022"], hue:30  },
+    { brand:"Instacart",          title:"“We’re Here”", studio:"JAMM",                    slug:"instacart-were-here", wide:true },
+    { brand:"Sony PlayStation",   title:"“Bazaar”",     studio:"MPC",                     slug:"playstation-bazaar" },
+    { brand:"Amazon",             title:"“Alexa”",      studio:"JAMM",                    slug:"amazon-alexa" },
+    { brand:"Amazon Music",       title:"“Lady Gaga”",  studio:"BUCK",                    slug:"amazon-music-lady-gaga" },
+    { brand:"Apple",              title:"“iPhone X”",   studio:"MPC",                     slug:"apple-iphone-x" },
+    { brand:"Target",             title:"“Holiday 25”", studio:"JAMM",                    slug:"target-holiday-25" },
+    { brand:"Cricket Wireless",   title:"“Barry”",      studio:"Psyop",                   slug:"cricket-barry" },
+    { brand:"PetSmart",           title:"“Fairy”",      studio:"Joy Machine / Shepherd",  slug:"petsmart-fairy" },
+    { brand:"Dr Pepper",          title:"“Slide”",      studio:"Joy Machine / Shepherd",  slug:"dr-pepper-slide" },
+    { brand:"Bath & Body Works",  title:"“Holiday”",    studio:"JAMM",                    slug:"bath-body-works-holiday", wide:true },
   ];
 
   const commercialGrid = document.getElementById('commercialGrid');
   commercials.forEach(p => {
     const frame = document.createElement('div');
-    frame.className = 'frame';
+    frame.className = 'frame' + (p.wide ? ' wide' : '');
     frame.innerHTML = `
-      <div class="still" style="background:
-        linear-gradient(135deg, hsl(${p.hue} 45% 14%), hsl(${p.hue+40} 35% 8%));"></div>
+      <div class="still" style="background-image:url('commercials/${p.slug}.jpg');"></div>
       <div class="meta">
         <div>
-          <div class="num mono">${p.num}</div>
+          <div class="num mono">${p.brand.toUpperCase()}</div>
           <div class="title">${p.title}</div>
         </div>
-        <div class="tags mono">${p.tags.join('<br>')}</div>
+        <div class="tags mono">VFX<br>${p.studio.toUpperCase()}</div>
       </div>
     `;
+    frame.addEventListener('click', () => openPlayer(CDN + p.slug + '.mp4'));
     commercialGrid.appendChild(frame);
   });
 
+  /* ---------- lightbox player ---------- */
+  const lightbox = document.getElementById('lightbox');
+  const lightboxVideo = lightbox.querySelector('video');
+  function openPlayer(src){
+    lightboxVideo.src = src;
+    lightbox.classList.add('open');
+    lightboxVideo.play();
+  }
+  function closePlayer(){
+    lightbox.classList.remove('open');
+    lightboxVideo.pause();
+    lightboxVideo.removeAttribute('src');
+    lightboxVideo.load();
+  }
+  lightbox.addEventListener('click', e => { if (e.target !== lightboxVideo) closePlayer(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && lightbox.classList.contains('open')) closePlayer(); });
+
   /* ---------- SELECTED CREDITS (posters) ----------
-     Replace `art` with the real poster image URL (Bunny CDN works fine). */
+     `art` is the poster image in /posters; leave it out to fall back to the gradient. */
   const credits = [
-    { role:"CG SUPERVISOR", title:"Secret Invasion",                          hue:180 },
-    { role:"CG SUPERVISOR", title:"Ant-Man and the Wasp: Quantumania",       hue:20  },
-    { role:"CG SUPERVISOR", title:"Dr. Strange in the Multiverse of Madness",hue:200 },
-    { role:"CG SUPERVISOR", title:"I Am Groot",                              hue:30  },
-    { role:"CG SUPERVISOR", title:"The Mother",                              hue:210 },
-    { role:"CG SUPERVISOR", title:"King Richard",                            hue:45  },
-    { role:"FX ARTIST",     title:"The Eternals",                            hue:195 },
-    { role:"FX ARTIST",     title:"Spider-Man: Far From Home",              hue:10  },
-    { role:"FX ARTIST",     title:"Solo: A Star Wars Story",                hue:215 },
-    { role:"FX ARTIST",     title:"Thor: Ragnarok",                          hue:35  },
-    { role:"FX ARTIST",     title:"Spider-Man: Homecoming",                 hue:185 },
-    { role:"FX ARTIST",     title:"Harry Potter and the Deathly Hallows",   hue:12  },
+    { role:"CG SUPERVISOR", title:"The Acolyte",                             art:"posters/the-acolyte.jpg",                  hue:12  },
+    { role:"CG SUPERVISOR", title:"Shang-Chi and the Legend of the Ten Rings",art:"posters/shang-chi.jpg",                   hue:205 },
+    { role:"FX ARTIST",     title:"Tron: Ares",                              art:"posters/tron-ares.jpg",                    hue:190 },
+    { role:"CG SUPERVISOR", title:"Secret Invasion",                          art:"posters/secret-invasion.jpg",              hue:180 },
+    { role:"CG SUPERVISOR", title:"Ant-Man and the Wasp: Quantumania",       art:"posters/antman-quantumania.jpg",           hue:20  },
+    { role:"CG SUPERVISOR", title:"Dr. Strange in the Multiverse of Madness",art:"posters/doctor-strange-multiverse.jpg",    hue:200 },
+    { role:"CG SUPERVISOR", title:"I Am Groot",                              art:"posters/i-am-groot.jpg",                   hue:30  },
+    { role:"CG SUPERVISOR", title:"The Mother",                              art:"posters/the-mother.jpg",                   hue:210 },
+    { role:"CG SUPERVISOR", title:"King Richard",                            art:"posters/king-richard.jpg",                 hue:45  },
+    { role:"FX ARTIST",     title:"The Eternals",                            art:"posters/eternals.jpg",                     hue:195 },
+    { role:"FX ARTIST",     title:"Spider-Man: Far From Home",              art:"posters/spiderman-far-from-home.jpg",      hue:10  },
+    { role:"FX ARTIST",     title:"Solo: A Star Wars Story",                art:"posters/solo.jpg",                         hue:215 },
+    { role:"FX ARTIST",     title:"Thor: Ragnarok",                          art:"posters/thor-ragnarok.jpg",                hue:35  },
+    { role:"FX ARTIST",     title:"Spider-Man: Homecoming",                 art:"posters/spiderman-homecoming.jpg",         hue:185 },
+    { role:"FX ARTIST",     title:"Harry Potter and the Deathly Hallows",   art:"posters/harry-potter-deathly-hallows.jpg", hue:12  },
+    { role:"CG SUPERVISOR", title:"Gen V",                                   art:"posters/gen-v.jpg",                        hue:190 },
+    { role:"CG SUPERVISOR", title:"Heart of Stone",                          art:"posters/heart-of-stone.jpg",               hue:25  },
+    // TODO: fill in `role` for the credits below
+    { role:"",              title:"The Tomorrow War",                        art:"posters/the-tomorrow-war.jpg",             hue:15  },
+    { role:"",              title:"Beauty and the Beast",                    art:"posters/beauty-and-the-beast.jpg",         hue:195 },
+    { role:"",              title:"Furious 7",                               art:"posters/furious-7.jpg",                    hue:30  },
+    { role:"",              title:"Gone Girl",                               art:"posters/gone-girl.jpg",                    hue:180 },
+    { role:"",              title:"Maleficent",                              art:"posters/maleficent.jpg",                   hue:20  },
+    { role:"",              title:"X-Men: Days of Future Past",             art:"posters/xmen-days-of-future-past.jpg",     hue:200 },
+    { role:"",              title:"Nanny McPhee Returns",                    art:"posters/nanny-mcphee-returns.jpg",         hue:35  },
+    { role:"",              title:"Planet 51",                               art:"posters/planet-51.jpg",                    hue:210 },
+    { role:"",              title:"10,000 BC",                               art:"posters/10000-bc.jpg",                     hue:45  },
+    { role:"",              title:"The Chronicles of Narnia: Prince Caspian",art:"posters/narnia-prince-caspian.jpg",        hue:185 },
+    { role:"",              title:"47 Ronin",                                art:"posters/47-ronin.jpg",                     hue:10  },
+    { role:"",              title:"Clash of the Titans",                     art:"posters/clash-of-the-titans.jpg",          hue:215 },
   ];
 
   const posterGrid = document.getElementById('posterGrid');
@@ -529,39 +611,22 @@
     const el = document.createElement('div');
     el.className = 'poster';
     el.innerHTML = `
-      <div class="art" style="background:
+      <div class="art" style="background-image:${c.art ? `url('${c.art}'), ` : ''}
         linear-gradient(160deg, hsl(${c.hue} 40% 16%), hsl(${c.hue+30} 30% 7%));"></div>
       <div class="label">
-        <span class="role mono">${c.role}</span>
+        ${c.role ? `<span class="role mono">${c.role}</span>` : ''}
         <div class="ptitle">${c.title}</div>
       </div>
     `;
     posterGrid.appendChild(el);
   });
 
-  /* ---------- hero grain placeholder ---------- */
-  const canvas = document.getElementById('grain');
-  const ctx = canvas.getContext('2d');
-  let w, h;
-  function resize(){ w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; }
-  resize();
-  window.addEventListener('resize', resize);
-
-  function drawGrain(){
-    const imageData = ctx.createImageData(w, h);
-    const buffer = new Uint32Array(imageData.data.buffer);
-    for (let i = 0; i < buffer.length; i++){
-      const shade = 8 + Math.floor(Math.random()*14);
-      buffer[i] = (255 << 24) | (shade << 16) | (shade << 8) | shade;
-    }
-    ctx.putImageData(imageData, 0, 0);
+  /* ---------- hero video: hold on the poster frame for reduced-motion users ---------- */
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    const heroVideo = document.querySelector('.hero-video');
+    heroVideo.removeAttribute('autoplay');
+    heroVideo.pause();
   }
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!reduceMotion){
-    let last = 0;
-    function loop(t){ if (t - last > 90){ drawGrain(); last = t; } requestAnimationFrame(loop); }
-    requestAnimationFrame(loop);
-  } else { drawGrain(); }
 
   /* ---------- timecode ---------- */
   const tc = document.getElementById('timecode');
